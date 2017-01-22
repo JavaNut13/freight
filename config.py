@@ -5,9 +5,9 @@ class Config(object):
     def __init__(self, **validations):
         self.validations = validations
         self.parser = None
-    def __call__(self, path):
+    def __call__(self, paths):
         parser = configparser.ConfigParser()
-        parser.read(path)
+        parser.read(paths)
         keys = parser.sections()
         sections = dict()
         required = set([name for name, val in self.validations.items() if val['required']])
@@ -31,7 +31,6 @@ class Config(object):
                     raise Exception("Could not validate {}: {}".format(val, e))
         return ParsedConfig(keys, sections)
 
-
 class ParsedConfig(object):
     def __init__(self, keys, sections):
         self.sections, self.keys = sections, keys
@@ -39,6 +38,13 @@ class ParsedConfig(object):
         return str(self.sections)
     def __getitem__(self, section):
         return self.sections[section]
+    def items(self):
+        return self.sections.items()
+    def write(self, path):
+        with open(path, 'w') as configfile:
+            parser = configparser.ConfigParser()
+            parser.read_dict(self.sections)
+            parser.write(configfile)
 
 def opt(**options):
     return options
