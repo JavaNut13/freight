@@ -24,8 +24,22 @@ CurrentVersions = Config(
     )
 )
 
+def semver_str(tup):
+    return '.'.join([str(t) for t in tup])
+
+def cmd(command):
+    log.error(command)
+
 def upgrade(app, config):
+    version = semver_str(config['version'])
     log.info("Upgrading", app, "to version", config['version'])
+    cmd('git clone {} /tmp/{}'.format(config['repo_url'], app))
+    cmd('docker build -t {app}:{ver} /tmp/{app}'.format(
+        app=app, ver=version))
+    # TODO stop the container
+    cmd('docker run -d {app}:{ver}'.format(app=app, ver=version))
+    
+
 
 def get_current(path):
     log.info("Loading current values from", path)
