@@ -1,5 +1,5 @@
 from config import Config, opt, url, sem_ver
-import sys
+import sys, os, subprocess
 import log
 
 
@@ -14,6 +14,10 @@ Options = Config(
     version=opt(
         required=True,
         validate=sem_ver
+    ),
+    flags=opt(
+        validate=str,
+        default=lambda: ''
     )
 )
 
@@ -28,45 +32,49 @@ def semver_str(tup):
     return '.'.join([str(t) for t in tup])
 
 def cmd(command):
-    log.error(command)
+    log.info('>', command)
+    os.system(command)
+def cmd_output(commands):
+    log.info('>', *commands)
+    return subprocess.Popen(commands, stdout=subprocess.PIPE).communicate()[0]
 
-def upgrade(app, config):
+def upgrade(app, config, old_version):
     version = semver_str(config['version'])
+    old_ver_str = semver_str(old_version)
+    image_name = config['image_name']
     log.info("Upgrading", app, "to version", config['version'])
-    cmd('git clone {} /tmp/{}'.format(config['repo_url'], app))
-    cmd('docker build -t {app}:{ver} /tmp/{app}'.format(
-        app=app, ver=version))
-    # TODO stop the container
-    cmd('docker run -d {app}:{ver}'.format(app=app, ver=version))
+    cmd('git clone {} /tmp/{}'.format(config['repo_url'], image_name))
+    cmd('docker build -t {image}:{ver} /tmp/{image}'.format(
+        image=image_name, ver=version))
+    image_id = cmd_output(['docker', 'ps', '-fq', 'name={}'.format(image_name)])
+    if len(image_id) == 0:
+        log.info('no container running')
+    else:
+        cmd('docker stop {}'.format(' '.join(image_id.split('\n'))))
+    cmd('docker run -d {image}:{ver}'.format(image=image_name, ver=version))
     
-
-
 def get_current(path):
     log.info("Loading current values from", path)
     return {app: config['version'] for app, config in CurrentVersions(path).items()}
 
 def main(args):
     log.init_global_log(level=log.Log.DEBUG)
-    config = args[1]
-    current = get_current(config)
+    current = get_current(args[1])
     applications = args[2:]
     log.info("Getting config from", applications)
     ops = Options(applications)
-    # for each section in every file
-    # check if the version is greater than the current version
-    # if it is:
-    #   clone repo to tmp location
-    #   build new image with tag
-    #   stop the old image
-    #   start the new image
-    #   log the change somewhere?
     for app, config in ops.items():
-        log.info('loading app:', app)
-        if app not in current:
-            upgrade(app, config)
-        elif current[app] < config['version']:
-            upgrade(app, config)
+        version = (0, 0, 0)
+        if app in current:
+            version = current[app]
+        log.info('loading app:', app, 'current version:', semver_str(version))
+        if version < config['version']:
+            upgrade(app, config, version)
+        else:
+            log.info('version not changed')
+        current[app] = config['version']
 
+    Config.write(args[1], {app: {'version': semver_str(v)} for app, v in current.items()})
 
 
 if __name__ == '__main__':

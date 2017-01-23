@@ -10,9 +10,9 @@ class Config(object):
         parser.read(paths)
         keys = parser.sections()
         sections = dict()
-        required = set([name for name, val in self.validations.items() if val['required']])
+        required = set([name for name, val in self.validations.items() if 'required' in val and val['required']])
         for section in keys:
-            options = dict()
+            options = {key: conf['default']() for key, conf in self.validations.items() if 'default' in conf}
             sections[section] = options
             
             present_ops = set(parser.options(section))
@@ -30,6 +30,12 @@ class Config(object):
                 except Exception as e:
                     raise Exception("Could not validate {}: {}".format(val, e))
         return ParsedConfig(keys, sections)
+    @classmethod
+    def write(self, path, dictionary):
+        with open(path, 'w') as configfile:
+            parser = configparser.ConfigParser()
+            parser.read_dict(dictionary)
+            parser.write(configfile)
 
 class ParsedConfig(object):
     def __init__(self, keys, sections):
