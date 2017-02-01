@@ -2,6 +2,7 @@ from config import Config, opt, url, sem_ver
 import sys, os, subprocess
 import log
 
+PWD = os.path.dirname(os.path.realpath(__file__))
 
 Options = Config(
     repo_url=opt(
@@ -29,7 +30,7 @@ CurrentVersions = Config(
 )
 
 def semver_str(tup):
-    return '.'.join([str(t) for t in tup])
+    return '.'.join(str(t) for t in tup)
 
 def cmd(command):
     log.info('>', command)
