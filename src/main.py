@@ -44,15 +44,25 @@ def upgrade(app, config, old_version):
     old_ver_str = semver_str(old_version)
     image_name = config['image_name']
     log.info("Upgrading", app, "to version", config['version'])
-    cmd('git clone {} /tmp/{}'.format(config['repo_url'], image_name))
-    cmd('docker build -t {image}:{ver} /tmp/{image}'.format(
-        image=image_name, ver=version))
-    image_id = cmd_output(['docker', 'ps', '-fq', 'name={}'.format(image_name)])
-    if len(image_id) == 0:
-        log.info('no container running')
-    else:
-        cmd('docker stop {}'.format(' '.join(image_id.split('\n'))))
-    cmd('docker run -d {image}:{ver}'.format(image=image_name, ver=version))
+
+    command = [
+        'bash',
+        PWD + '/upgrade.bash',
+        image_name,
+        config['repo_url'],
+        old_ver_str,
+        version
+    ]
+    cmd(' '.join(command))
+#     cmd('git clone {} /tmp/{}'.format(config['repo_url'], image_name))
+#     cmd('docker build -t {image}:{ver} /tmp/{image}'.format(
+#         image=image_name, ver=version))
+#     image_id = cmd_output(['docker', 'ps', '-fq', 'name={}'.format(image_name)])
+#     if len(image_id) == 0:
+#         log.info('no container running')
+#     else:
+#         cmd('docker stop {}'.format(' '.join(image_id.split('\n'))))
+#     cmd('docker run -d {image}:{ver}'.format(image=image_name, ver=version))
     
 def get_current(path):
     log.info("Loading current values from", path)
