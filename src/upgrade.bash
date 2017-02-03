@@ -38,6 +38,12 @@ ver_gt() {
   [ $? -eq 1 ]
 }
 
+parse_flags() {
+  for flag in $@; do
+    
+  done
+}
+
 # Actual script bit
 
 current_versions="$1"
@@ -65,8 +71,8 @@ function upgrade_app() {
 }
 
 function app() {
-  app_name="$1"
-  eval $app_name
+  eval "$1"
+  app_name=${1//-/_}
   [ -z "$url" ] && echo "ERROR: url is blank" && exit 1
   [ -z "$version" ] && echo "ERROR: version is blank" && exit 1
   old_version=$(eval "echo \$version_$app_name")
