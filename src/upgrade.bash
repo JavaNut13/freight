@@ -39,42 +39,77 @@ ver_gt() {
 }
 
 parse_flags() {
+  local key=""
+  local value=""
+  args=()
   for flag in $@; do
-    
+    if [ ${flag:0:2} = "--" ]; then
+      IFS="=" read -r key value <<< "${flag:2}"
+      [ -z "$value" ] && value="true"
+      eval "flags_$key=\"$value\""
+    else
+      args+=("$flag")
+    fi
   done
+}
+
+fatal() {
+  local status=$1
+  shift
+  echo $@
+  exit $status
+}
+
+dry() {
+  if [ $# -eq 0 ]; then
+    [ -z "$flags_dry_run" ]
+  else
+    if [ -z "$flags_dry_run" ]; then
+      eval $@
+    else
+      echo "> $@"
+    fi
+  fi
 }
 
 # Actual script bit
 
-current_versions="$1"
+parse_flags $@
+
+[ ! -z "$flags_dry_run" ] && echo "DRY RUN"
+
+current_versions="${args[0]}"
+dry && fatal 1 "Current versions file must be given"
 
 if [ -e "$current_versions" ]; then
   echo "Reading old version info from $current_versions"
   source "$current_versions"
-  mv "$current_versions" "$current_versions-old"
+  dry mv "$current_versions" "$current_versions-old"
 fi
-echo -n '' > "$current_versions"
+dry echo -n '' > "$current_versions"
 
 function upgrade_app() {
   local tmp_path=$(mktemp -d)
-  git clone $url $tmp_path
-  git -C $tmp_path checkout tags/$version 2> /dev/null
-  docker build -t $app_name:$version $tmp_path
-  container=$(docker ps | grep "$app_name" | cut -d' ' -f1 | xargs)
-  if [ -z "$container" ]; then
-    echo "No running containers for image $app_name"
-  else
-    docker stop $container
+  dry git clone $url $tmp_path
+  dry git -C $tmp_path checkout tags/$version 2> /dev/null
+  dry docker build -t $app_name:$version $tmp_path
+  if ! dry; then
+    container=$(docker ps | grep "$app_name" | cut -d' ' -f1 | xargs)
+    if [ -z "$container" ]; then
+      echo "No running containers for image $app_name"
+    else
+      docker stop $container
+    fi
   fi
-  docker run -d $app_name:$version
+  dry docker run -d $app_name:$version
   rm -rf $tmp_path
 }
 
 function app() {
   eval "$1"
   app_name=${1//-/_}
-  [ -z "$url" ] && echo "ERROR: url is blank" && exit 1
-  [ -z "$version" ] && echo "ERROR: version is blank" && exit 1
+  [ -z "$url" ] && fatal 1 "ERROR: url is blank"
+  [ -z "$version" ] && fatal 1 "ERROR: version is blank"
   old_version=$(eval "echo \$version_$app_name")
   [ -z "$old_version" ] && old_version=0.0.0
   if ver_gt $version $old_version; then
@@ -83,14 +118,13 @@ function app() {
   else
     echo "$app_name up to date ($version)"
   fi
-  echo "version_$app_name=$version" >> "$current_versions"
+  dry echo "version_$app_name=$version" >> "$current_versions"
   url=""
   version=""
   app_name=""
 }
 
-shift 1
-for src_file in $@; do
+for src_file in ${args[@]:1}; do
   echo "Loading $src_file"
   source $src_file
 done
