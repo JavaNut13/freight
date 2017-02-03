@@ -74,12 +74,41 @@ dry() {
 
 # Actual script bit
 
+if [ $# -le 1 ]; then
+  cat <<EOF
+Usage:
+  freight <version store> <app config...>
+
+  version store: File that stores the currently deployed version of each app.
+    Will be created if it does not exist. Should be consistent between deployments
+
+  app config: File or files that contain config for applications. These are bash
+    files, with a DSL-like syntax for defining apps:
+
+    my-server() {
+      url=https://example.com/my_git_repo
+      version=3.1.4
+    }
+    app my-server
+
+    The apps and files will be processed/ loaded in order.
+
+  NOTE: All config files are bash scripts, this makes the tool easy to develop
+    but poses a security hole. Don't put untrusted content in your config or
+    verion files!
+
+EOF
+exit 1
+fi
+
 parse_flags $@
 
 [ ! -z "$flags_dry_run" ] && echo "DRY RUN"
 
 current_versions="${args[0]}"
-dry && fatal 1 "Current versions file must be given"
+if [ -z "$current_versions" ]; then
+  fatal 1 "Current versions file must be given"
+fi
 
 if [ -e "$current_versions" ]; then
   echo "Reading old version info from $current_versions"
