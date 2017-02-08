@@ -1,76 +1,11 @@
 #!/bin/bash
-
 set -e
-
-vercomp () {
-  if [[ $1 == $2 ]]
-  then
-    return 0
-  fi
-  local IFS=.
-  local i ver1=($1) ver2=($2)
-  # fill empty fields in ver1 with zeros
-  for ((i=${#ver1[@]}; i<${#ver2[@]}; i++))
-  do
-    ver1[i]=0
-  done
-  for ((i=0; i<${#ver1[@]}; i++))
-  do
-    if [[ -z ${ver2[i]} ]]
-    then
-      # fill empty fields in ver2 with zeros
-      ver2[i]=0
-    fi
-    if ((10#${ver1[i]} > 10#${ver2[i]}))
-    then
-      return 1
-    fi
-    if ((10#${ver1[i]} < 10#${ver2[i]}))
-    then
-      return 2
-    fi
-  done
-  return 0
+source_rel() {
+  source "${BASH_SOURCE%/*}/$1"
 }
 
-ver_gt() {
-  vercomp "$1" "$2"
-  [ $? -eq 1 ]
-}
-
-parse_flags() {
-  local key=""
-  local value=""
-  args=()
-  for flag in $@; do
-    if [ ${flag:0:2} = "--" ]; then
-      IFS="=" read -r key value <<< "${flag:2}"
-      [ -z "$value" ] && value="true"
-      eval "flags_$key=\"$value\""
-    else
-      args+=("$flag")
-    fi
-  done
-}
-
-fatal() {
-  local status=$1
-  shift
-  echo $@
-  exit $status
-}
-
-dry() {
-  if [ $# -eq 0 ]; then
-    [ -z "$flags_dry_run" ]
-  else
-    if [ -z "$flags_dry_run" ]; then
-      eval $@
-    else
-      echo "> $@"
-    fi
-  fi
-}
+source_rel "printer.sh"
+source_rel "util.sh"
 
 # Actual script bit
 
@@ -119,19 +54,31 @@ dry echo -n '' > "$current_versions"
 
 function upgrade_app() {
   local tmp_path=$(mktemp -d)
+  # Clone the repo to a temp location
   dry git clone $url $tmp_path
   dry git -C $tmp_path checkout tags/$version 2> /dev/null
+
+  # Build a tagged image for the repo
   dry docker build -t $app_name:$version $tmp_path
   if ! dry; then
+    # Stop the running container
     container=$(docker ps | grep "$app_name" | cut -d' ' -f1 | xargs)
     if [ -z "$container" ]; then
-      echo "No running containers for image $app_name"
+      cecho LIGHT_BLUE "No running containers for image $app_name"
     else
       docker stop $container
     fi
   fi
-  dry docker run -d $app_name:$version
+  # Start the new container
+  dry docker run ${run_flags[@]} -d $app_name:$version
+  cecho GREEN "$app_name started"
   rm -rf $tmp_path
+}
+
+function flag() {
+  local key="$1"
+  local value="$2"
+  run_flags+=("-$key=$value")
 }
 
 function app() {
@@ -151,9 +98,12 @@ function app() {
   url=""
   version=""
   app_name=""
+  run_flags=()
 }
 
+run_flags=()
 for src_file in ${args[@]:1}; do
-  echo "Loading $src_file"
+  cecho LIGHT_BLUE "Loading $src_file"
+  [ ! -f "$src_file" ] && fatal 2 "File does not exist or is folder: $src_file"
   source $src_file
 done
