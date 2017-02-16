@@ -1,0 +1,12 @@
+#!/bin/bash
+set -e
+
+FREIGHT_PATH=/home/will/projects/glp/javanut13/freight/src/freight
+THIS="$HOME/tmp"
+
+tempfile=$(mktemp -d)
+git clone "$THIS" $tempfile
+
+[ -f "$HOME/current" ] && chmod +x "$HOME/current"
+eval $FREIGHT_PATH "$HOME/current" "$tempfile"
+rm -rf "$tempfile"
