@@ -41,6 +41,7 @@ parse_flags() {
   local key=""
   local value=""
   args=()
+  c_args=0
   for flag in $@; do
     if [ ${flag:0:2} = "--" ]; then
       IFS="=" read -r key value <<< "${flag:2}"
@@ -48,6 +49,7 @@ parse_flags() {
       eval "flags_$key=\"$value\""
     else
       args+=("$flag")
+      ((c_args+=1))
     fi
   done
 }
